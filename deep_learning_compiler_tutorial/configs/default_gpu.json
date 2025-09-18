@@ -1,0 +1,7 @@
+{
+  "warp_size": 32,
+  "shared_mem_kb": 128,
+  "vector_width": 4,
+  "max_threads_per_sm": 2048,
+  "supports_tensor_core": true
+}

@@ -1,0 +1,91 @@
+// Example ParallelC program demonstrating parallel constructs
+// This file shows the syntax and features of ParallelC
+
+int global_sum = 0;
+
+// Simple parallel computation function
+int parallel_sum(int n) {
+    int local_sum = 0;
+    
+    // Parallel for loop - distributes iterations across threads
+    parallel_for(0, n, {
+        atomic_add(&local_sum, i);
+    });
+    
+    return local_sum;
+}
+
+// Matrix multiplication example
+void matrix_multiply(int A[100][100], int B[100][100], int C[100][100], int size) {
+    parallel_for(0, size, {
+        for (int j = 0; j < size; j++) {
+            C[i][j] = 0;
+            for (int k = 0; k < size; k++) {
+                C[i][j] = C[i][j] + A[i][k] * B[k][j];
+            }
+        }
+    });
+}
+
+// Parallel reduction example
+int parallel_array_sum(int arr[1000], int size) {
+    int total = 0;
+    
+    parallel_for(0, size, {
+        atomic_add(&total, arr[i]);
+        
+        // Thread synchronization
+        barrier();
+        
+        // Only first thread prints progress
+        if (thread_id() == 0) {
+            printf("Progress: %d/%d\n", i, size);
+        }
+    });
+    
+    return total;
+}
+
+// Main function demonstrating various features
+int main() {
+    printf("ParallelC Demo Program\n");
+    printf("Number of threads: %d\n", num_threads());
+    
+    // Test parallel sum
+    int result1 = parallel_sum(1000);
+    printf("Parallel sum result: %d\n", result1);
+    
+    // Test array operations
+    int test_array[100];
+    for (int i = 0; i < 100; i++) {
+        test_array[i] = i + 1;
+    }
+    
+    int result2 = parallel_array_sum(test_array, 100);
+    printf("Array sum result: %d\n", result2);
+    
+    // Test matrix operations
+    int matA[100][100];
+    int matB[100][100];
+    int matC[100][100];
+    
+    // Initialize matrices
+    for (int i = 0; i < 100; i++) {
+        for (int j = 0; j < 100; j++) {
+            matA[i][j] = i + j;
+            matB[i][j] = i * j;
+        }
+    }
+    
+    matrix_multiply(matA, matB, matC, 100);
+    printf("Matrix multiplication completed\n");
+    
+    // Demonstrate atomic operations
+    int counter = 0;
+    parallel_for(0, 1000, {
+        atomic_add(&counter, 1);
+    });
+    printf("Atomic counter result: %d\n", counter);
+    
+    return 0;
+}

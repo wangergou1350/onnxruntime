@@ -1,0 +1,196 @@
+// Advanced ParallelC example: Parallel sorting algorithm
+// Demonstrates complex parallel constructs and nested parallelism
+
+void parallel_quicksort(int arr[], int low, int high) {
+    if (low < high) {
+        int pivot = partition(arr, low, high);
+        
+        // Parallel recursive calls
+        parallel_for(0, 2, {
+            if (i == 0) {
+                parallel_quicksort(arr, low, pivot - 1);
+            } else {
+                parallel_quicksort(arr, pivot + 1, high);
+            }
+        });
+    }
+}
+
+int partition(int arr[], int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+    
+    for (int j = low; j < high; j++) {
+        if (arr[j] < pivot) {
+            i++;
+            // Atomic swap
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
+    
+    // Final swap
+    int temp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = temp;
+    
+    return i + 1;
+}
+
+// Parallel merge sort
+void parallel_merge_sort(int arr[], int temp[], int low, int high) {
+    if (low < high) {
+        int mid = low + (high - low) / 2;
+        
+        // Parallel divide
+        parallel_for(0, 2, {
+            if (i == 0) {
+                parallel_merge_sort(arr, temp, low, mid);
+            } else {
+                parallel_merge_sort(arr, temp, mid + 1, high);
+            }
+        });
+        
+        // Sequential merge
+        merge(arr, temp, low, mid, high);
+    }
+}
+
+void merge(int arr[], int temp[], int low, int mid, int high) {
+    int i = low;
+    int j = mid + 1;
+    int k = low;
+    
+    while (i <= mid && j <= high) {
+        if (arr[i] <= arr[j]) {
+            temp[k] = arr[i];
+            i++;
+        } else {
+            temp[k] = arr[j];
+            j++;
+        }
+        k++;
+    }
+    
+    while (i <= mid) {
+        temp[k] = arr[i];
+        i++;
+        k++;
+    }
+    
+    while (j <= high) {
+        temp[k] = arr[j];
+        j++;
+        k++;
+    }
+    
+    // Copy back
+    for (int i = low; i <= high; i++) {
+        arr[i] = temp[i];
+    }
+}
+
+// Parallel matrix operations
+void parallel_matrix_add(float A[256][256], float B[256][256], float C[256][256]) {
+    parallel_for(0, 256, {
+        for (int j = 0; j < 256; j++) {
+            C[i][j] = A[i][j] + B[i][j];
+        }
+    });
+}
+
+// Producer-Consumer pattern with synchronization
+int buffer[100];
+int buffer_count = 0;
+int producer_done = 0;
+
+void producer() {
+    for (int i = 0; i < 50; i++) {
+        // Wait for space in buffer
+        while (buffer_count >= 100) {
+            barrier();
+        }
+        
+        // Add item to buffer
+        atomic_add(&buffer_count, 1);
+        buffer[buffer_count - 1] = i * i;
+        
+        printf("Produced: %d\n", i * i);
+    }
+    
+    atomic_add(&producer_done, 1);
+}
+
+void consumer() {
+    int consumed = 0;
+    
+    while (consumed < 50 || producer_done == 0) {
+        if (buffer_count > 0) {
+            // Consume item
+            int item = buffer[buffer_count - 1];
+            atomic_sub(&buffer_count, 1);
+            consumed++;
+            
+            printf("Consumed: %d\n", item);
+        } else {
+            barrier(); // Wait for producer
+        }
+    }
+}
+
+int main() {
+    printf("Advanced ParallelC Examples\n");
+    
+    // Test array for sorting
+    int test_array[1000];
+    int temp_array[1000];
+    
+    // Initialize with reverse order
+    for (int i = 0; i < 1000; i++) {
+        test_array[i] = 1000 - i;
+    }
+    
+    printf("Starting parallel quicksort...\n");
+    parallel_quicksort(test_array, 0, 999);
+    printf("Quicksort completed\n");
+    
+    // Reinitialize for merge sort
+    for (int i = 0; i < 1000; i++) {
+        test_array[i] = 1000 - i;
+    }
+    
+    printf("Starting parallel merge sort...\n");
+    parallel_merge_sort(test_array, temp_array, 0, 999);
+    printf("Merge sort completed\n");
+    
+    // Test matrix operations
+    float matA[256][256];
+    float matB[256][256];
+    float matC[256][256];
+    
+    printf("Initializing matrices...\n");
+    parallel_for(0, 256, {
+        for (int j = 0; j < 256; j++) {
+            matA[i][j] = i + j * 0.5f;
+            matB[i][j] = i * 0.3f + j;
+        }
+    });
+    
+    printf("Adding matrices in parallel...\n");
+    parallel_matrix_add(matA, matB, matC);
+    printf("Matrix addition completed\n");
+    
+    // Test producer-consumer
+    printf("Starting producer-consumer test...\n");
+    parallel_for(0, 2, {
+        if (i == 0) {
+            producer();
+        } else {
+            consumer();
+        }
+    });
+    printf("Producer-consumer test completed\n");
+    
+    return 0;
+}
